@@ -576,19 +576,6 @@ translate_remote('Elixir.String.Chars', to_string, Meta, [Arg], S) ->
     {clause, Generated, [Var], [[Guard]], [Fast]},
     {clause, Generated, [Var], [], [Slow]}
   ]}, VS};
-translate_remote(maps, put, Meta, [Key, Value, Map], S) ->
-  Ann = ?ann(Meta),
-
-  case translate_args([Key, Value, Map], Ann, S) of
-    {[TKey, TValue, {map, _, InnerMap, Pairs}], TS} ->
-      {{map, Ann, InnerMap, Pairs ++ [{map_field_assoc, Ann, TKey, TValue}]}, TS};
-
-    {[TKey, TValue, {map, _, Pairs}], TS} ->
-      {{map, Ann, Pairs ++ [{map_field_assoc, Ann, TKey, TValue}]}, TS};
-
-    {[TKey, TValue, TMap], TS} ->
-      {{map, Ann, TMap, [{map_field_assoc, Ann, TKey, TValue}]}, TS}
-  end;
 translate_remote(lists, member, Meta, [Expr, [Head | Tail] = List], S) ->
   Ann = ?ann(Meta),
 

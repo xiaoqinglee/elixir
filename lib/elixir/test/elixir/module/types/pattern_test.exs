@@ -1406,11 +1406,15 @@ defmodule Module.Types.PatternTest do
       assert precise?([x], not (length(x) > 0))
       assert precise?([x], length(x) >= 0)
       assert precise?([x], length(x) < 1)
+      assert precise?([x], 1 > length(x))
+      assert precise?([x], 0 <= length(x))
 
       refute precise?([x], length(x) == 1)
       refute precise?([x], length(x) != 1)
       refute precise?([x], length(x) > 1)
       refute precise?([x], length(x) <= 3)
+      refute precise?([x], length(x) < 0)
+      refute precise?([x], 0 > length(x))
 
       # Maps: only when compared to 0
       assert precise?([x], map_size(x) == 0)

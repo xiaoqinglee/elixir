@@ -165,19 +165,6 @@ lookup_struct_info_from_data_tables(Module) ->
 
 load_struct(Meta, Name, Assocs, E) ->
   try
-    maybe_load_struct(Meta, Name, Assocs, E)
-  of
-    {ok, Struct} -> Struct;
-    {error, Desc} -> file_error(Meta, E, ?MODULE, Desc)
-  catch
-    Kind:Reason ->
-      Info = [{Name, '__struct__', 1, [{file, "expanding struct"}]},
-              elixir_utils:caller(?line(Meta), ?key(E, file), ?key(E, module), ?key(E, function))],
-      erlang:raise(Kind, Reason, Info)
-  end.
-
-maybe_load_struct(Meta, Name, Assocs, E) ->
-  try
     case is_open(Name, Meta, E) andalso elixir_def:external_for(Meta, Name, '__struct__', 1, [def]) of
       %% If I am accessing myself and there is no __struct__ function,
       %% don't invoke the fallback to avoid calling loaded code.
@@ -207,15 +194,23 @@ maybe_load_struct(Meta, Name, Assocs, E) ->
       [maps:is_key(Key, Struct) orelse
           function_error(Meta, E, ?MODULE, {unknown_key_for_struct, Name, Key})
        || {Key, _} <- Assocs],
-      {ok, Struct};
+      Struct;
 
     #{'__struct__' := StructName} when is_atom(StructName) ->
-      {error, {struct_name_mismatch, Name, StructName}};
+      Desc = {struct_name_mismatch, Name, StructName},
+      file_error(Meta, E, ?MODULE, Desc);
 
     Other ->
-      {error, {invalid_struct_return_value, Name, Other}}
+      Desc = {invalid_struct_return_value, Name, Other},
+      file_error(Meta, E, ?MODULE, Desc)
   catch
-    error:undef -> {error, struct_undef(Name, E)}
+    error:undef ->
+      file_error(Meta, E, ?MODULE, struct_undef(Name, E));
+
+    Kind:Reason ->
+      Info = [{Name, '__struct__', 1, [{file, "expanding struct"}]},
+              elixir_utils:caller(?line(Meta), ?key(E, file), ?key(E, module), ?key(E, function))],
+      erlang:raise(Kind, Reason, Info)
   end.
 
 assert_and_trace_struct_assocs(Meta, Name, Assocs, E) ->

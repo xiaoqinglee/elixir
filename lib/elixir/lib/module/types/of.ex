@@ -495,7 +495,7 @@ defmodule Module.Types.Of do
   def struct_info(struct, kind, meta, stack, context) do
     case stack.no_warn_undefined do
       %Macro.Env{} = env ->
-        case :elixir_map.maybe_load_struct_info(meta, struct, env) do
+        case :elixir_map.maybe_load_struct_info(meta, struct, :soft, env) do
           {:ok, info} -> {info, context}
           {:error, _desc} -> {nil, context}
         end

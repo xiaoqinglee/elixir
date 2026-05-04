@@ -973,7 +973,7 @@ defmodule Macro do
   def struct_info!(module, env) when is_atom(module) do
     meta = [line: env.line]
 
-    case :elixir_map.maybe_load_struct_info(meta, module, env) do
+    case :elixir_map.maybe_load_struct_info(meta, module, :hard, env) do
       {:ok, info} ->
         :elixir_env.trace({:struct_expansion, meta, module, []}, env)
         info

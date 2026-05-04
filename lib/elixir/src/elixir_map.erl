@@ -3,7 +3,7 @@
 %% SPDX-FileCopyrightText: 2012 Plataformatec
 
 -module(elixir_map).
--export([expand_map/4, expand_struct/5, format_error/1, maybe_load_struct_info/3]).
+-export([expand_map/4, expand_struct/5, format_error/1, maybe_load_struct_info/4]).
 -import(elixir_errors, [function_error/4, file_error/4, file_warn/4]).
 -include("elixir.hrl").
 
@@ -139,22 +139,19 @@ assert_struct_info_if_not_function(Meta, Name, Assocs, #{function := nil} = E) -
 assert_struct_info_if_not_function(_Meta, _Name, _Assocs, _E) ->
   ok.
 
-maybe_load_struct_info(Meta, Name, E) ->
-  maybe_load_struct_info(Meta, Name, soft, E).
-
 maybe_load_struct_info(Meta, Name, Mode, E) ->
   try
-    InContext = in_context(Name, E),
+    Lookup = in_context(Name, E) orelse is_compiling_struct(Meta, Name, Mode, E),
 
-    case (InContext orelse is_compiling_struct(Meta, Name, Mode, E))
-           andalso lookup_struct_info_from_data_tables(Name) of
+    case lookup_struct_info_from_data_tables(Name) of
       %% If I am accessing myself and there is no attribute,
       %% don't invoke the fallback to avoid calling loaded code.
       false when ?key(E, module) =:= Name -> nil;
       false ->
-        %% We already attempted to wait for the struct (unless InContext),
-        %% so we only invoke '__info__' if already loaded or InContext
-        case InContext orelse erlang:module_loaded(Name) of
+        %% If we attempted to lookup a definition, we always invoke it, to deal
+        %% with potential race conditions about the table being deleted at the
+        %% time we were looking up.
+        case Lookup orelse erlang:module_loaded(Name) of
           true -> Name:'__info__'(struct);
           false -> nil
         end;

@@ -811,13 +811,13 @@ defmodule CodeTest do
     message = "unknown compiler option: :not_a_valid_option"
 
     assert_raise RuntimeError, message, fn ->
-      Code.put_compiler_option(:not_a_valid_option, :foo)
+      Code.put_compiler_option(Process.get(:unused, :not_a_valid_option), :ok)
     end
 
     message = "compiler option :debug_info should be a boolean, got: :not_a_boolean"
 
     assert_raise RuntimeError, message, fn ->
-      Code.put_compiler_option(:debug_info, :not_a_boolean)
+      Code.put_compiler_option(:debug_info, Process.get(:unused, :not_a_boolean))
     end
   end
 

@@ -642,17 +642,17 @@ defmodule Module.Types.Descr do
   defp numberize(:bitmap, bitmap), do: bitmap
 
   defp numberize(:map, bdd) do
-    bdd_map(bdd, fn {tag, fields} ->
-      {tag, fields_map(fn _key, value -> numberize(value) end, fields)}
+    bdd_map(bdd, fn bdd_leaf(tag, fields) ->
+      bdd_leaf_new(tag, fields_map(fn _key, value -> numberize(value) end, fields))
     end)
   end
 
   defp numberize(:tuple, bdd) do
-    bdd_map(bdd, fn {tag, fields} -> {tag, Enum.map(fields, &numberize/1)} end)
+    bdd_map(bdd, fn bdd_leaf(tag, fields) -> bdd_leaf_new(tag, Enum.map(fields, &numberize/1)) end)
   end
 
   defp numberize(:list, bdd) do
-    bdd_map(bdd, fn {head, tail} -> {numberize(head), numberize(tail)} end)
+    bdd_map(bdd, fn bdd_leaf(head, tail) -> bdd_leaf_new(numberize(head), numberize(tail)) end)
   end
 
   @doc """
@@ -3580,7 +3580,7 @@ defmodule Module.Types.Descr do
     else
       domain_keys_type ->
         {_seen, acc} =
-          bdd_reduce(bdd, {%{}, domain_keys_type}, fn {_tag, fields}, seen_acc ->
+          bdd_reduce(bdd, {%{}, domain_keys_type}, fn bdd_leaf(_tag, fields), seen_acc ->
             fields_fold(fields, seen_acc, fn key, _type, {seen, acc} ->
               if Map.has_key?(seen, key) do
                 {seen, acc}
@@ -3832,8 +3832,8 @@ defmodule Module.Types.Descr do
   defp map_put_key_static(%{map: bdd} = descr, key, type) do
     bdd =
       bdd_map(bdd, fn
-        {:closed, fields} when type == @not_set -> {:closed, fields}
-        {tag, fields} -> {tag, fields_store(key, type, fields)}
+        bdd_leaf(:closed, fields) when type == @not_set -> bdd_leaf_new(:closed, fields)
+        bdd_leaf(tag, fields) -> bdd_leaf_new(tag, fields_store(key, type, fields))
       end)
 
     %{descr | map: bdd}
@@ -3878,7 +3878,7 @@ defmodule Module.Types.Descr do
 
   defp map_update_merge_atom_key(bdd, dnf) do
     {_seen, acc} =
-      bdd_reduce(bdd, {%{}, none()}, fn {_tag, fields}, seen_acc ->
+      bdd_reduce(bdd, {%{}, none()}, fn bdd_leaf(_tag, fields), seen_acc ->
         fields_fold(fields, seen_acc, fn key, _type, {seen, acc} ->
           if Map.has_key?(seen, key) do
             {seen, acc}
@@ -3893,7 +3893,7 @@ defmodule Module.Types.Descr do
   end
 
   defp map_update_any_atom_key?(bdd, dnf) do
-    bdd_reduce(bdd, %{}, fn {_tag, fields}, acc ->
+    bdd_reduce(bdd, %{}, fn bdd_leaf(_tag, fields), acc ->
       fields_fold(fields, acc, fn key, _type, acc ->
         if Map.has_key?(acc, key) do
           acc
@@ -3977,8 +3977,8 @@ defmodule Module.Types.Descr do
 
   defp map_update_put_domains(bdd, domain_keys, type_fun, force?) do
     bdd =
-      bdd_map(bdd, fn {tag, fields} ->
-        {map_update_put_domain(tag, domain_keys, type_fun, force?), fields}
+      bdd_map(bdd, fn bdd_leaf(tag, fields) ->
+        bdd_leaf_new(map_update_put_domain(tag, domain_keys, type_fun, force?), fields)
       end)
 
     %{map: bdd}
@@ -4211,7 +4211,7 @@ defmodule Module.Types.Descr do
 
   defp map_keys_from_negated_set(set, bdd) do
     bdd
-    |> bdd_reduce(%{}, fn {_, fields}, acc ->
+    |> bdd_reduce(%{}, fn bdd_leaf(_, fields), acc ->
       fields_fold(fields, acc, fn atom, _, acc ->
         if :sets.is_element(atom, set), do: acc, else: Map.put(acc, atom, true)
       end)
@@ -5679,7 +5679,12 @@ defmodule Module.Types.Descr do
 
   # Takes a static map type and removes an index from it.
   defp tuple_delete_static(%{tuple: bdd}, index) do
-    %{tuple: bdd_map(bdd, fn {tag, elements} -> {tag, List.delete_at(elements, index)} end)}
+    %{
+      tuple:
+        bdd_map(bdd, fn bdd_leaf(tag, elements) ->
+          bdd_leaf_new(tag, List.delete_at(elements, index))
+        end)
+    }
   end
 
   # If there is no map part to this static type, there is nothing to delete.
@@ -5743,7 +5748,7 @@ defmodule Module.Types.Descr do
 
   defp tuple_insert_static(descr, index, type) do
     Map.update!(descr, :tuple, fn bdd ->
-      bdd_map(bdd, fn {tag, elements} ->
+      bdd_map(bdd, fn bdd_leaf(tag, elements) ->
         # If the tuple is open, then we want List.insert_at to put the new element at the correct
         # index, which requires filling the tuple with `term()` values first.
         # Closed tuples of an incorrect size will be ignored (they are cancelled by the earlier
@@ -5755,7 +5760,7 @@ defmodule Module.Types.Descr do
             elements
           end
 
-        {tag, List.insert_at(elements, index, type)}
+        bdd_leaf_new(tag, List.insert_at(elements, index, type))
       end)
     end)
   end
@@ -6287,14 +6292,11 @@ defmodule Module.Types.Descr do
       :bdd_top ->
         :bdd_top
 
-      bdd_leaf(arg1, arg2) ->
-        {arg1, arg2} = fun.({arg1, arg2})
-        bdd_leaf_new(arg1, arg2)
+      bdd_leaf(_, _) = leaf ->
+        fun.(leaf)
 
-      {_, bdd_leaf(arg1, arg2), left, union, right} ->
-        {arg1, arg2} = fun.({arg1, arg2})
-        literal = bdd_leaf_new(arg1, arg2)
-        bdd_node_new(literal, bdd_map(left, fun), bdd_map(union, fun), bdd_map(right, fun))
+      {_, leaf, left, union, right} ->
+        bdd_node_new(fun.(leaf), bdd_map(left, fun), bdd_map(union, fun), bdd_map(right, fun))
     end
   end
 
@@ -6306,11 +6308,11 @@ defmodule Module.Types.Descr do
       :bdd_top ->
         acc
 
-      bdd_leaf(arg1, arg2) ->
-        fun.({arg1, arg2}, acc)
+      bdd_leaf(_, _) = leaf ->
+        fun.(leaf, acc)
 
-      {_, bdd_leaf(arg1, arg2), left, union, right} ->
-        acc = fun.({arg1, arg2}, acc)
+      {_, leaf, left, union, right} ->
+        acc = fun.(leaf, acc)
         acc = bdd_reduce(left, acc, fun)
         acc = bdd_reduce(union, acc, fun)
         acc = bdd_reduce(right, acc, fun)

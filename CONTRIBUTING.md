@@ -99,15 +99,11 @@ case you are looking for some examples:
 Once a pull request is sent, the Elixir team will review your changes.
 We outline our process below to clarify the roles of everyone involved.
 
-All pull requests must be approved by two committers before being merged into
-the repository. If changes are necessary, the team will leave appropriate
-comments requesting changes to the code. Unfortunately, we cannot guarantee a
-pull request will be merged, even when modifications are requested, as the Elixir
-team will re-evaluate the contribution as it changes.
-
-Committers may also push style changes directly to your branch. If you would
-rather manage all changes yourself, you can disable the "Allow edits from maintainers"
-feature when submitting your pull request.
+All pull requests must be reviewed before being merged into the repository.
+If changes are necessary, the team will leave appropriate comments requesting
+changes to the code. Unfortunately, we cannot guarantee a pull request will
+be merged, even when modifications are requested, as the Elixir team will
+re-evaluate the contribution as it changes.
 
 The Elixir team may optionally assign someone to review a pull request.
 If someone is assigned, they must explicitly approve the code before
@@ -117,6 +113,29 @@ When the review finishes, your pull request will be squashed and merged
 into the repository. If you have carefully organized your commits and
 believe they should be merged without squashing, please mention it in
 a comment.
+
+## Building documentation
+
+Building the documentation requires that [ExDoc](https://github.com/elixir-lang/ex_doc)
+is installed and built alongside Elixir.
+
+After cloning and compiling Elixir, run:
+
+```sh
+elixir_dir=$(pwd)
+cd .. && git clone https://github.com/elixir-lang/ex_doc.git
+cd ex_doc && "${elixir_dir}/bin/elixir" "${elixir_dir}/bin/mix" do deps.get + compile
+
+# Now we will go back to Elixir's root directory,
+cd "${elixir_dir}"
+
+# and generate HTML and EPUB documents:
+make docs
+```
+
+This will produce documentation sets for `elixir`, `eex`, `ex_unit`, `iex`, `logger`,
+and `mix` under the `doc` directory. If you are planning to contribute documentation,
+[please check our best practices for writing documentation](https://hexdocs.pm/elixir/writing-documentation.html).
 
 ## Licensing and Compliance Requirements
 
@@ -181,30 +200,37 @@ affecting **all external contributors**:
     See <https://developercertificate.org/> for a copy of the Developer Certificate
     of Origin license.
 
-## Building documentation
+## Using AI and coding agents
 
-Building the documentation requires that [ExDoc](https://github.com/elixir-lang/ex_doc)
-is installed and built alongside Elixir.
+While we allow the use of AI on contributions and discussions, please be mindful
+when doing so. Generally speaking, Elixir maintainers already have access to AI
+(like many other developers). Therefore, if we need the feedback or help of a
+coding agent, we can request so ourselves. For this reason, we often find
+the point of view of the human behind the agent more valuable.
 
-After cloning and compiling Elixir, run:
+That said, here are examples of how one might (or might not) use AI and coding
+agents in Elixir spaces:
 
-```sh
-elixir_dir=$(pwd)
-cd .. && git clone https://github.com/elixir-lang/ex_doc.git
-cd ex_doc && "${elixir_dir}/bin/elixir" "${elixir_dir}/bin/mix" do deps.get + compile
+  * When it comes to discussions, using AI to help express yourself is welcome,
+    but avoid directly copy and pasting AI generated content. If there is a language
+    barrier, use AI to translate or review your text, but do not use AI to respond
+    on your behalf.
 
-# Now we will go back to Elixir's root directory,
-cd "${elixir_dir}"
+  * Do not use coding agents to tackle existing issues unless they have the
+    "Contributions Welcome" label.
 
-# and generate HTML and EPUB documents:
-make docs
-```
+  * If you request a feature on the mailing list and it is accepted, you may
+    use coding agents to implement it, as long as it follows the AI Contributions
+    guidelines below.
 
-This will produce documentation sets for `elixir`, `eex`, `ex_unit`, `iex`, `logger`,
-and `mix` under the `doc` directory. If you are planning to contribute documentation,
-[please check our best practices for writing documentation](https://hexdocs.pm/elixir/writing-documentation.html).
+  * When automating AI usage on the Elixir codebase for performance improvements
+    or security fixes, pair it with a separate set of agents whose job is to argue
+    against and try to invalidate any proposed change. And treat their approval as
+    advisory: a human must still validate it before opening issues or pull requests.
 
-## AI contributions
+If any code is written by AI, then you must follow the guidelines below.
+
+### AI contributions
 
 AI agents MUST NOT add Signed-off-by tags. Only humans can legally certify the Developer
 Certificate of Origin (DCO). The human submitter is responsible for:
@@ -220,8 +246,3 @@ AI in the development process. Contributions should include an Assisted-by tag i
 following format:
 
     Assisted-by: AGENT_NAME:MODEL_VERSION
-
-When it comes to discussions, please be mindful about the use of AI. Using AI to help
-express yourself is welcome but avoid simply copy and pasting large AI generated content.
-Elixir maintainers also have access to coding agents and, if they need feedback from an
-agentic systems, they can request such themselves.

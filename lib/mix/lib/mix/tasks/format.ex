@@ -499,7 +499,7 @@ defmodule Mix.Tasks.Format do
 
   defp read_manifest(manifest) do
     with {:ok, binary} <- File.read(manifest),
-         {:ok, {@manifest_vsn, entry, sources}} <- safe_binary_to_term(binary),
+         {:ok, {@manifest_vsn, entry, sources}} <- non_raising_binary_to_term(binary),
          expanded_sources = Enum.flat_map(sources, &Path.wildcard(&1, match_dot: true)),
          false <- Mix.Utils.stale?([Mix.Project.config_mtime() | expanded_sources], [manifest]) do
       {entry, sources}
@@ -508,7 +508,7 @@ defmodule Mix.Tasks.Format do
     end
   end
 
-  defp safe_binary_to_term(binary) do
+  defp non_raising_binary_to_term(binary) do
     {:ok, :erlang.binary_to_term(binary)}
   rescue
     _ -> :error

@@ -671,7 +671,7 @@ defmodule Calendar.ISO do
                 {{year, month, day}, time_from_day_fraction(day_fraction)}
 
               {extra_days, day_fraction} ->
-                base_days = date_to_iso_days(year, month, day)
+                base_days = valid_date_to_iso_days(year, month, day)
                 {date_from_iso_days(base_days + extra_days), time_from_day_fraction(day_fraction)}
             end
 
@@ -892,12 +892,15 @@ defmodule Calendar.ISO do
 
   # Converts year, month, day to count of days since 0000-01-01.
   @doc false
-  def date_to_iso_days(0, 1, 1), do: 0
-  def date_to_iso_days(1970, 1, 1), do: @unix_epoch_days
-
   def date_to_iso_days(year, month, day) do
     ensure_day_in_month!(year, month, day)
+    valid_date_to_iso_days(year, month, day)
+  end
 
+  defp valid_date_to_iso_days(0, 1, 1), do: 0
+  defp valid_date_to_iso_days(1970, 1, 1), do: @unix_epoch_days
+
+  defp valid_date_to_iso_days(year, month, day) do
     y = if month <= 2, do: year - 1, else: year
     era = if y >= 0, do: div(y, @years_per_era), else: div(y - 399, @years_per_era)
     year_of_era = y - era * @years_per_era
@@ -1875,7 +1878,7 @@ defmodule Calendar.ISO do
   @doc false
   def shift_days({year, month, day}, days) do
     {year, month, day} =
-      date_to_iso_days(year, month, day)
+      valid_date_to_iso_days(year, month, day)
       |> Kernel.+(days)
       |> date_from_iso_days()
 

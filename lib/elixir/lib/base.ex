@@ -203,171 +203,206 @@ defmodule Base do
   @swar_dash_x7 0x2D2D2D2D2D2D2D
   @swar_under_x7 0x5F5F5F5F5F5F5F
 
-  # Per-byte validity guards (used in both the SWAR clauses for the 8th byte
+  # Per-byte validity checks (used in both the SWAR clauses for the 8th byte
   # of each stride and in the body of the sub-8-byte tail clauses).
-  defguardp valid_char16upper?(c) when c in ?0..?9 or c in ?A..?F
-  defguardp valid_char16lower?(c) when c in ?0..?9 or c in ?a..?f
-  defguardp valid_char16mixed?(c) when c in ?0..?9 or c in ?A..?F or c in ?a..?f
+  @compile {:inline,
+            valid_char16upper?: 1,
+            valid_char16lower?: 1,
+            valid_char16mixed?: 1,
+            valid_char32upper?: 1,
+            valid_char32lower?: 1,
+            valid_char32mixed?: 1,
+            valid_char32hexupper?: 1,
+            valid_char32hexlower?: 1,
+            valid_char32hexmixed?: 1,
+            valid_char64base?: 1,
+            valid_char64url?: 1,
+            valid_word16upper?: 1,
+            valid_word16lower?: 1,
+            valid_word16mixed?: 1,
+            valid_word32upper?: 1,
+            valid_word32lower?: 1,
+            valid_word32mixed?: 1,
+            valid_word32hexupper?: 1,
+            valid_word32hexlower?: 1,
+            valid_word32hexmixed?: 1,
+            valid_word64base?: 1,
+            valid_word64url?: 1}
 
-  defguardp valid_char32upper?(c) when c in ?A..?Z or c in ?2..?7
-  defguardp valid_char32lower?(c) when c in ?a..?z or c in ?2..?7
-  defguardp valid_char32mixed?(c) when c in ?A..?Z or c in ?a..?z or c in ?2..?7
+  defp valid_char16upper?(c), do: c in ?0..?9 or c in ?A..?F
+  defp valid_char16lower?(c), do: c in ?0..?9 or c in ?a..?f
+  defp valid_char16mixed?(c), do: c in ?0..?9 or c in ?A..?F or c in ?a..?f
+
+  defp valid_char32upper?(c), do: c in ?A..?Z or c in ?2..?7
+  defp valid_char32lower?(c), do: c in ?a..?z or c in ?2..?7
+  defp valid_char32mixed?(c), do: c in ?A..?Z or c in ?a..?z or c in ?2..?7
 
   # Most common range first — letters dominate (22/32) over digits (10/32)
   # in hex base32, so letters go first in the OR short-circuit.
-  defguardp valid_char32hexupper?(c) when c in ?A..?V or c in ?0..?9
-  defguardp valid_char32hexlower?(c) when c in ?a..?v or c in ?0..?9
-  defguardp valid_char32hexmixed?(c) when c in ?A..?V or c in ?a..?v or c in ?0..?9
+  defp valid_char32hexupper?(c), do: c in ?A..?V or c in ?0..?9
+  defp valid_char32hexlower?(c), do: c in ?a..?v or c in ?0..?9
+  defp valid_char32hexmixed?(c), do: c in ?A..?V or c in ?a..?v or c in ?0..?9
 
-  defguardp valid_char64base?(c)
-            when c in ?A..?Z or c in ?a..?z or c in ?0..?9 or c == ?+ or c == ?/
+  defp valid_char64base?(c),
+    do: c in ?A..?Z or c in ?a..?z or c in ?0..?9 or c == ?+ or c == ?/
 
-  defguardp valid_char64url?(c)
-            when c in ?A..?Z or c in ?a..?z or c in ?0..?9 or c == ?- or c == ?_
+  defp valid_char64url?(c),
+    do: c in ?A..?Z or c in ?a..?z or c in ?0..?9 or c == ?- or c == ?_
 
-  # SWAR 7-byte word validity. Structure for each guard:
+  # SWAR 7-byte word validity. Structure for each function:
   #   1. ASCII gate `band(w, MASK80) == 0` — every byte < 0x80 so the
   #      additions below cannot carry across lanes.
   #   2. "Each byte is in range A OR range B (OR range C)" gate — OR per-
   #      range XOR masks (high bit set in lane iff byte in that range), AND
   #      with MASK80, demand all 7 high bits set.
-  defguardp valid_word16upper?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bxor(w + @swar_ge_0, w + @swar_gt_9),
-                       bxor(w + @swar_ge_A, w + @swar_gt_F)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word16upper?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bxor(w + @swar_ge_0, w + @swar_gt_9),
+          bxor(w + @swar_ge_A, w + @swar_gt_F)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word16lower?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bxor(w + @swar_ge_0, w + @swar_gt_9),
-                       bxor(w + @swar_ge_a, w + @swar_gt_f)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word16lower?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bxor(w + @swar_ge_0, w + @swar_gt_9),
+          bxor(w + @swar_ge_a, w + @swar_gt_f)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word16mixed?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bor(
-                         bxor(w + @swar_ge_0, w + @swar_gt_9),
-                         bxor(w + @swar_ge_A, w + @swar_gt_F)
-                       ),
-                       bxor(w + @swar_ge_a, w + @swar_gt_f)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word16mixed?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bor(
+            bxor(w + @swar_ge_0, w + @swar_gt_9),
+            bxor(w + @swar_ge_A, w + @swar_gt_F)
+          ),
+          bxor(w + @swar_ge_a, w + @swar_gt_f)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word32upper?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bxor(w + @swar_ge_A, w + @swar_gt_Z),
-                       bxor(w + @swar_ge_2, w + @swar_gt_7)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word32upper?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bxor(w + @swar_ge_A, w + @swar_gt_Z),
+          bxor(w + @swar_ge_2, w + @swar_gt_7)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word32lower?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bxor(w + @swar_ge_a, w + @swar_gt_z),
-                       bxor(w + @swar_ge_2, w + @swar_gt_7)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word32lower?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bxor(w + @swar_ge_a, w + @swar_gt_z),
+          bxor(w + @swar_ge_2, w + @swar_gt_7)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word32mixed?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bor(
-                         bxor(w + @swar_ge_A, w + @swar_gt_Z),
-                         bxor(w + @swar_ge_a, w + @swar_gt_z)
-                       ),
-                       bxor(w + @swar_ge_2, w + @swar_gt_7)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word32mixed?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bor(
+            bxor(w + @swar_ge_A, w + @swar_gt_Z),
+            bxor(w + @swar_ge_a, w + @swar_gt_z)
+          ),
+          bxor(w + @swar_ge_2, w + @swar_gt_7)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word32hexupper?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bxor(w + @swar_ge_0, w + @swar_gt_9),
-                       bxor(w + @swar_ge_A, w + @swar_gt_V)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word32hexupper?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bxor(w + @swar_ge_0, w + @swar_gt_9),
+          bxor(w + @swar_ge_A, w + @swar_gt_V)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word32hexlower?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bxor(w + @swar_ge_0, w + @swar_gt_9),
-                       bxor(w + @swar_ge_a, w + @swar_gt_v)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word32hexlower?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bxor(w + @swar_ge_0, w + @swar_gt_9),
+          bxor(w + @swar_ge_a, w + @swar_gt_v)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word32hexmixed?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bor(
-                         bxor(w + @swar_ge_0, w + @swar_gt_9),
-                         bxor(w + @swar_ge_A, w + @swar_gt_V)
-                       ),
-                       bxor(w + @swar_ge_a, w + @swar_gt_v)
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word32hexmixed?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bor(
+            bxor(w + @swar_ge_0, w + @swar_gt_9),
+            bxor(w + @swar_ge_A, w + @swar_gt_V)
+          ),
+          bxor(w + @swar_ge_a, w + @swar_gt_v)
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
   # base64 SWAR word validity: 3 ranges (A-Z, a-z, 0-9) OR'd with singletons.
   # For base, the digit range is extended to [0x2F, 0x39] to absorb '/' as
   # part of one range (Lemire merge), leaving only '+' as a Mycroft singleton.
   # For url, the singletons '-' and '_' are detected via two Mycroft terms.
-  defguardp valid_word64base?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bor(
-                         bor(
-                           bxor(w + @swar_ge_A, w + @swar_gt_Z),
-                           bxor(w + @swar_ge_a, w + @swar_gt_z)
-                         ),
-                         bxor(w + @swar_ge_slash, w + @swar_gt_9)
-                       ),
-                       bxor(w, @swar_plus_x7) - @swar_mask01
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word64base?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bor(
+            bor(
+              bxor(w + @swar_ge_A, w + @swar_gt_Z),
+              bxor(w + @swar_ge_a, w + @swar_gt_z)
+            ),
+            bxor(w + @swar_ge_slash, w + @swar_gt_9)
+          ),
+          bxor(w, @swar_plus_x7) - @swar_mask01
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
-  defguardp valid_word64url?(w)
-            when band(w, @swar_mask80) == 0 and
-                   band(
-                     bor(
-                       bor(
-                         bor(
-                           bxor(w + @swar_ge_A, w + @swar_gt_Z),
-                           bxor(w + @swar_ge_a, w + @swar_gt_z)
-                         ),
-                         bxor(w + @swar_ge_0, w + @swar_gt_9)
-                       ),
-                       bor(
-                         bxor(w, @swar_dash_x7) - @swar_mask01,
-                         bxor(w, @swar_under_x7) - @swar_mask01
-                       )
-                     ),
-                     @swar_mask80
-                   ) == @swar_mask80
+  defp valid_word64url?(w) do
+    band(w, @swar_mask80) == 0 and
+      band(
+        bor(
+          bor(
+            bor(
+              bxor(w + @swar_ge_A, w + @swar_gt_Z),
+              bxor(w + @swar_ge_a, w + @swar_gt_z)
+            ),
+            bxor(w + @swar_ge_0, w + @swar_gt_9)
+          ),
+          bor(
+            bxor(w, @swar_dash_x7) - @swar_mask01,
+            bxor(w, @swar_under_x7) - @swar_mask01
+          )
+        ),
+        @swar_mask80
+      ) == @swar_mask80
+  end
 
   @doc """
   Encodes a binary string into a base 16 encoded string.

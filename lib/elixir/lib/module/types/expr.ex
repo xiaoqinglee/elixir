@@ -34,10 +34,6 @@ defmodule Module.Types.Expr do
             versioned_vars: open_map()
           )
 
-  # An annotation for terms where the reverse arrow is not yet fully defined.
-  # Also revisit all users of dynamic() in this module in a later date.
-  @pending term()
-
   # We do not make exception dynamic on purpose. If you do a blank rescue,
   # then we will assume you need to statically handle all possible exceptions.
   @exception open_map(__struct__: atom(), __exception__: term())
@@ -57,6 +53,9 @@ defmodule Module.Types.Expr do
                   tuple([fun(), args_or_arity, extra_info])
                 )
               )
+
+  @falsy atom([false, nil])
+  @truthy negation(atom([false, nil]))
 
   # :atom
   def of_expr(atom, _expected, _expr, _stack, context) when is_atom(atom),
@@ -287,35 +286,54 @@ defmodule Module.Types.Expr do
     of_expr(post, expected, post, stack, context)
   end
 
-  def of_expr({:cond, meta, [[{:do, clauses}]]}, expected, expr, stack, original) do
-    cache_result(meta, stack, original, fn ->
-      clauses
-      |> reduce_non_empty({none(), original}, fn
-        {:->, meta, [[head], body]}, {acc, context}, last? ->
-          {head_type, context} = of_expr(head, @pending, head, stack, context)
+  def of_expr({:cond, meta, [[{:do, clauses}]]}, expected, expr, stack, context) do
+    cache_result(meta, stack, context, fn ->
+      {body_type, acc_context} =
+        reduce_non_empty(clauses, {none(), context}, fn
+          {:->, meta, [[head], body]}, {acc, acc_context}, last? ->
+            {head_type, context} =
+              of_expr(head, term(), head, %{stack | reverse_arrow: :cache}, acc_context)
 
-          context =
-            if is_warning(stack) do
-              case truthiness(head_type) do
-                :always_true when not last? ->
-                  warning = {:badcond, "always match", head_type, head, context}
-                  warn(__MODULE__, warning, meta, stack, context)
+            # Reset the context vars, keep warnings, as we will infer with expected truthy
+            context = Of.reset_vars(context, acc_context)
 
-                :always_false ->
-                  warning = {:badcond, "never match", head_type, head, context}
-                  warn(__MODULE__, warning, meta, stack, context)
+            context =
+              if is_warning(stack) do
+                case truthiness(head_type) do
+                  :always_true when not last? ->
+                    warning = {:badcond, "always match", head_type, head, context}
+                    warn(__MODULE__, warning, meta, stack, context)
 
-                _ ->
-                  context
+                  :always_false ->
+                    warning = {:badcond, "never match", head_type, head, context}
+                    warn(__MODULE__, warning, meta, stack, context)
+
+                  _ ->
+                    context
+                end
+              else
+                context
               end
-            else
-              context
-            end
 
-          {body_type, context} = of_expr(body, expected, expr, stack, context)
-          {union(body_type, acc), Of.reset_vars(context, original)}
-      end)
-      |> dynamic_unless_static(stack)
+            {_, truthy_context} =
+              of_expr(head, @truthy, head, %{stack | reverse_arrow: :use}, context)
+
+            # Keep the context except the warnings, and compute the body
+            context = reset_warnings(truthy_context, context)
+
+            {body_type, context} =
+              of_expr(body, expected, expr, stack, context)
+
+            # Reset the context vars once again to compute the falsy type
+            context = Of.reset_vars(context, acc_context)
+
+            {_, falsy_context} =
+              of_expr(head, @falsy, head, %{stack | reverse_arrow: :use}, context)
+
+            {union(body_type, acc), reset_warnings(falsy_context, context)}
+        end)
+
+      dynamic_unless_static({body_type, Of.reset_vars(acc_context, context)}, stack)
     end)
   end
 

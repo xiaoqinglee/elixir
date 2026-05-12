@@ -233,13 +233,30 @@ Inferring type signatures comes with a series of trade-offs:
 
 On the other hand, type inference offers the benefit of enabling type checking for functions and codebases without requiring the user to add type annotations. To balance these trade-offs, Elixir aims to provide "module type inference": our goal is to infer the types of functions considering the current module, Elixir's standard library and your dependencies, while calls to modules within the same project are assumed to be `dynamic()`. Once types are inferred, then the whole project is type checked considering all modules and all types (inferred or otherwise).
 
-Type inference in Elixir is best-effort: it doesn't guarantee it will find all possible type incompatibilities, only that it may find bugs where all combinations of a type _will_ fail, even in the absence of explicit type annotations. It is meant to be an efficient routine that brings developers some benefits of static typing without requiring any effort from them.
+Type inference in Elixir is best-effort: it doesn't guarantee it will find all possible type incompatibilities, only that it may find bugs where all combinations of a type _will_ fail, even in the absence of explicit type annotations. It is meant to be an efficient routine that brings developers some benefits of static typing, without requiring any effort from them and keeping the expressiveness of the language.
 
-In the long term, Elixir developers who want typing guarantees must explicitly add type signatures to their functions (see "Roadmap"). Any function with an explicit type signature will be typed checked against the user-provided annotations, as in other statically typed languages, without performing type inference. In summary, type checking will rely on type signatures and only fallback to inferred types when no signature is available.
+In the long term, Elixir developers who want static typing guarantees must explicitly add type signatures to their functions (see "Roadmap"). Any function with an explicit type signature will be typed checked against the user-provided annotations, as in other statically typed languages. 
+
+### False positives during inference
+
+Our goal with type inference is to avoid false positives: we will only emit typing violations if the code always fails. However, in some situations, Elixir may, on purpose, define a more strict type during inference, as to encourage certain idioms or to help spot bugs. Those cases are documented below.
+
+* Struct update syntax: when using the struct update syntax, `%User{user | name: "John Doe"}`, `user` must be guaranteed statically to be always be a `User` struct
+
+* Single-clause anonymous functions: Elixir always considers the code inside anonynous functions to be executed. For example, in the snippet below
+
+    ```elixir
+    def example(x) do
+      fun = fn -> Integer.to_string(x) end
+      {String.to_integer(x), fun}
+    end
+    ```
+
+  even though the code will only fail at runtime if the anonymous function is executed, Elixir will treat it as if the function is always executed. If the function has multiple clauses, then Elixir doesn't know which clause will be executed, and makes no assumption.
 
 ## Roadmap
 
-The current milestone is to implement type inference of existing codebases, as well as type checking of all language constructs, without changes to the Elixir language. At this stage, we want to collect feedback on the quality of error messages and performance, and therefore the type system has no user facing API. Full type inference of patterns was released in Elixir v1.18, and complete inference is expected as part of Elixir v1.20.
+At this moment, Elixir implements type inference of all language constructs. The goal is to assess performance and collect feedback on the quality of error messages, before introducing user facing types.
 
 If the results are satisfactory, the next milestone will include a mechanism for defining typed structs. Elixir programs frequently pattern match on structs, which reveals information about the struct fields, but it knows nothing about their respective types. By propagating types from structs and their fields throughout the program, we will increase the type system’s ability to find errors while further straining our type system implementation. Proposals including the required changes to the language surface will be sent to the community once we reach this stage.
 

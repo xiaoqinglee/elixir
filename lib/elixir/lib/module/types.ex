@@ -4,7 +4,7 @@
 
 defmodule Module.Types do
   @moduledoc false
-  alias Module.Types.{Descr, Expr, Pattern, Helpers}
+  alias Module.Types.{Apply, Descr, Expr, Helpers, Pattern}
 
   # The mode controls what happens on function application when
   # there are gradual arguments. Non-gradual arguments always
@@ -251,17 +251,27 @@ defmodule Module.Types do
       context ->
         {_kind, info, mapping} = Map.fetch!(context.local_sigs, fun_arity)
 
-        clauses_indexes =
-          for type_index <- pending,
-              not skip_unused_clause?(info, type_index),
-              {clause_index, ^type_index} <- mapping,
-              do: clause_index
+        if pending != [] do
+          {used_indexes, unused_indexes} =
+            Enum.reduce(mapping, {[], []}, fn {clause_index, type_index},
+                                              {used_indexes, unused_indexes} ->
+              if type_index in pending and not skip_unused_clause?(info, type_index) do
+                {used_indexes, [clause_index | unused_indexes]}
+              else
+                {[clause_index | used_indexes], unused_indexes}
+              end
+            end)
 
-        Enum.reduce(clauses_indexes, context, fn clause_index, context ->
-          {meta, _args, _guards, _body} = Enum.fetch!(clauses, clause_index)
-          stack = %{stack | function: fun_arity}
-          Helpers.warn(__MODULE__, {:unused_clause, kind, fun_arity}, meta, stack, context)
-        end)
+          unused_indexes = Enum.uniq(unused_indexes) -- used_indexes
+
+          Enum.reduce(unused_indexes, context, fn clause_index, context ->
+            {meta, _args, _guards, _body} = Enum.fetch!(clauses, clause_index)
+            stack = %{stack | function: fun_arity}
+            Helpers.warn(__MODULE__, {:unused_clause, kind, fun_arity}, meta, stack, context)
+          end)
+        else
+          context
+        end
     end
   end
 
@@ -321,6 +331,70 @@ defmodule Module.Types do
     stack = stack |> fresh_stack(mode, fun_arity) |> with_file_meta(meta)
     base_info = {:def, kind, fun, expected}
 
+    case clauses do
+      [{meta, args, [], {:super, _, [_ | _]} = body}] ->
+        default_local_handler(meta, args, body, base_info, kind, fun, expected, stack, context)
+
+      _ ->
+        infer_local_handler(clauses, base_info, kind, fun, expected, stack, context)
+    end
+  end
+
+  defp default_local_handler(meta, args, body, base_info, kind, fun, expected, stack, context) do
+    guards = []
+    previous = Pattern.init_previous()
+    fresh_context = fresh_context(context)
+    info = {base_info, args, guards}
+
+    try do
+      {trees, _, _, _, head_context} =
+        Pattern.of_head(args, guards, expected, previous, info, meta, stack, fresh_context)
+
+      # Compute the intersected arrows from the function call
+      {:super, meta, call_args} = body
+      {_kind, call_fun} = Keyword.fetch!(meta, :super)
+      term = Descr.term()
+      of_fun = &Expr.of_expr/5
+
+      {arrows, body_context} =
+        Apply.local_arrows(call_fun, call_args, term, body, stack, head_context, of_fun)
+
+      # For each arrow, compute the default arrow
+      {_, mapping, inferred} =
+        Enum.reduce(arrows, {0, [], []}, fn
+          {clause_domain, return_type}, {index, mapping, inferred} ->
+            of_fun = &Expr.of_expr(&1, &2, body, stack, &3)
+
+            {_clause_args, clause_context} =
+              Helpers.zip_map_reduce(call_args, clause_domain, head_context, of_fun)
+
+            clause_types = Pattern.of_domain(trees, stack, clause_context)
+
+            {_type_index, inferred} =
+              add_inferred(inferred, clause_types, return_type, index - 1, [])
+
+            {index + 1, [{0, index} | mapping], inferred}
+        end)
+
+      domain =
+        case inferred do
+          [_] ->
+            nil
+
+          _ ->
+            inferred
+            |> Enum.map(fn {args, _} -> args end)
+            |> Enum.zip_with(fn types -> Enum.reduce(types, &Descr.union/2) end)
+        end
+
+      {{:infer, domain, Enum.reverse(inferred)}, mapping, restore_context(body_context, context)}
+    rescue
+      e ->
+        internal_error!(e, __STACKTRACE__, kind, meta, fun, args, guards, body, stack)
+    end
+  end
+
+  defp infer_local_handler(clauses, base_info, kind, fun, expected, stack, context) do
     {_, _, _, domain, mapping, clauses_types, clauses_context} =
       Enum.reduce(clauses, {0, 0, Pattern.init_previous(), [], [], [], context}, fn
         {meta, args, guards, body},

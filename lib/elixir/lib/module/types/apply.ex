@@ -1375,33 +1375,62 @@ defmodule Module.Types.Apply do
   ## Local
 
   def local(fun, args, expected, {_, meta, _} = expr, stack, context, of_fun) do
-    {local_info, domain, context} = local_domain(fun, args, expected, meta, stack, context)
+    {updated_used?, info, domain, context} =
+      local_domain(fun, args, expected, meta, stack, context)
 
     {args_types, context} =
       zip_map_reduce(args, domain, context, &of_fun.(&1, &2, expr, stack, &3))
 
-    local_apply(local_info, fun, args_types, expr, stack, context)
+    case local_apply(updated_used?, info, fun, args_types, expr, stack, context) do
+      {_indexes, type, context} -> {type, context}
+      {type, context} -> {type, context}
+    end
   end
+
+  def local_arrows(fun, args, expected, {_, meta, _} = expr, stack, context, of_fun) do
+    {updated_used?, info, domain, context} =
+      local_domain(fun, args, expected, meta, stack, context)
+
+    {args_types, context} =
+      zip_map_reduce(args, domain, context, &of_fun.(&1, &2, expr, stack, &3))
+
+    case local_apply(updated_used?, info, fun, args_types, expr, stack, context) do
+      {indexes, _type, context} -> {indexes_to_arrows(indexes, info), context}
+      {type, context} -> {[{Enum.map(args, fn _ -> type end), type}], context}
+    end
+  end
+
+  defp indexes_to_arrows(indexes, {_, _domain, clauses}),
+    do: indexes_to_arrows(Enum.reverse(indexes), clauses, 0)
+
+  defp indexes_to_arrows([index | indexes], [clause | clauses], index),
+    do: [clause | indexes_to_arrows(indexes, clauses, index + 1)]
+
+  defp indexes_to_arrows([_ | _] = indexes, [_clause | clauses], index),
+    do: indexes_to_arrows(indexes, clauses, index + 1)
+
+  defp indexes_to_arrows([], _clauses, _index),
+    do: []
 
   defp local_domain(fun, args, expected, meta, stack, context) do
     arity = length(args)
 
     case stack.local_handler.(meta, {fun, arity}, stack, context) do
       false ->
-        {{false, :none}, List.duplicate(term(), arity), context}
+        {false, :none, List.duplicate(term(), arity), context}
 
       {kind, info, context} ->
         update_used? = is_warning(stack) and kind == :defp
 
         if info == :none do
-          {{update_used?, :none}, List.duplicate(term(), arity), context}
+          {update_used?, :none, List.duplicate(term(), arity), context}
         else
-          {{update_used?, info}, filter_domain(info, expected, arity), context}
+          {update_used?, info, filter_domain(info, expected, arity), context}
         end
     end
   end
 
-  defp local_apply({update_used?, :none}, fun, args_types, _expr, _stack, context) do
+  defp local_apply(update_used?, :none, fun, args_types, _expr, _stack, context) do
     if update_used? do
       {dynamic(), put_in(context.local_used[{fun, length(args_types)}], [])}
     else
@@ -1409,7 +1438,7 @@ defmodule Module.Types.Apply do
     end
   end
 
-  defp local_apply({update_used?, info}, fun, args_types, expr, stack, context) do
+  defp local_apply(update_used?, info, fun, args_types, expr, stack, context) do
     case local_apply(info, args_types, stack) do
       {indexes, type} ->
         context =
@@ -1421,7 +1450,7 @@ defmodule Module.Types.Apply do
             context
           end
 
-        {type, context}
+        {indexes, type, context}
 
       :error ->
         error = {:badlocal, info, args_types, expr, context}

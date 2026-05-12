@@ -487,7 +487,7 @@ defmodule Module.Types.Expr do
         end)
 
       context =
-        if none? do
+        if none? or stack.mode != :static do
           head_type = Enum.reduce(clauses_acc, none(), &union(elem(&1, 0), &2))
 
           {_, refined_context} =

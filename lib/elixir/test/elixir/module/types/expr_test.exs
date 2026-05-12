@@ -1919,7 +1919,7 @@ defmodule Module.Types.ExprTest do
              ) == dynamic()
     end
 
-    test "refine types when there are branches (case)" do
+    test "refine types when there are dead branches (case)" do
       assert typecheck!(
                [x, key],
                (
@@ -1956,6 +1956,32 @@ defmodule Module.Types.ExprTest do
                  x
                )
              ) == dynamic(open_map())
+    end
+
+    test "refine types when it is dynamic" do
+      assert typecheck!(
+               [x],
+               (
+                 case x do
+                   {} -> :tuple
+                   %{} -> :empty_list
+                 end
+
+                 x
+               )
+             ) == dynamic()
+
+      assert typedyn(
+               [x],
+               (
+                 case x do
+                   {} -> :tuple
+                   %{} -> :empty_list
+                 end
+
+                 x
+               )
+             ) == dynamic(union(open_map(), tuple([])))
     end
 
     test "warns on redundant clauses" do

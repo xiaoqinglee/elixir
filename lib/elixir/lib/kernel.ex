@@ -5873,11 +5873,15 @@ defmodule Kernel do
   end
 
   @doc """
-  Defines a macro suitable for use in guard expressions.
+  Defines a custom guard with the given name.
 
-  It raises at compile time if the `guard` uses expressions that aren't
-  allowed in [guard clauses](patterns-and-guards.html#guards),
-  and otherwise creates a macro that can be used both inside or outside guards.
+  Once defined, custom guards can be invoked within regular code or in
+  guards. The module that contains the custom guard must be required before usage.
+
+  Custom guards are defined by providing a valid guard expression to
+  the right-hand side of `when`. `defguard` will then expand and validate
+  the expressions as guards. `defguard` will raise at compile time if the
+  guard uses expressions that aren't allowed in [guard clauses](patterns-and-guards.html#guards).
 
   When defining your own guards, consider the
   [naming conventions](naming-conventions.html#is_-prefix-is_foo)
@@ -5885,31 +5889,30 @@ defmodule Kernel do
 
   ## Example
 
+  For example, to define a guard similar to `Integer.is_even/1`, you can write:
+
       defmodule Integer.Guards do
         defguard is_even(value) when is_integer(value) and rem(value, 2) == 0
       end
 
-      defmodule Collatz do
-        @moduledoc "Tools for working with the Collatz sequence."
-        import Integer.Guards
+  which can then be used as:
 
-        @doc "Determines the number of steps `n` takes to reach `1`."
-        # If this function never converges, please let me know what `n` you used.
-        def converge(n) when n > 0, do: step(n, 0)
+      require Integer.Guards
+      Integer.Guards.is_even(3)
+      #=> false
 
-        defp step(1, step_count) do
-          step_count
-        end
+  ## Implementation details
 
-        defp step(n, step_count) when is_even(n) do
-          step(div(n, 2), step_count + 1)
-        end
+  Behind the scenes, `defguard` will generate a macro which can be used
+  inside and outside of guards, preserving their respective semantics.
 
-        defp step(n, step_count) do
-          step(3 * n + 1, step_count + 1)
-        end
-      end
+  When invoked inside a guard, it behaves as if the right-hand side of
+  `when` is injected as part of the guard, replacing the custom guard
+  arguments by the expressions given as inputs.
 
+  When invoked outside of a guard, it preserves regular function calling
+  semantics with one caveat: all arguments are evaluated before invocation,
+  except arguments which are unused, which are then never evaluated.
   """
   @doc since: "1.6.0"
   @spec defguard(Macro.t()) :: Macro.t()

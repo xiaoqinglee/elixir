@@ -27,6 +27,12 @@ defmodule Module.Types.HelpersTest do
       case = Macro.expand(quote(do: if(condition, do: :this, else: :that)), __ENV__)
       assert expr_to_string(case) == "if condition do\n  :this\nelse\n  :that\nend"
 
+      case = Macro.expand(quote(do: :this or :that), __ENV__)
+      assert expr_to_string(case) == ":this or :that"
+
+      case = Macro.expand(quote(do: :this and :that), __ENV__)
+      assert expr_to_string(case) == ":this and :that"
+
       case = Macro.expand(quote(do: :this || :that), __ENV__)
       assert expr_to_string(case) == ":this || :that"
 

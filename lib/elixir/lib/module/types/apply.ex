@@ -708,17 +708,16 @@ defmodule Module.Types.Apply do
 
   defp mismatched_ordered_comparison(left_type, right_type, stack) do
     if is_warning(stack) do
-      common = intersection(left_type, right_type)
-
       cond do
-        # This check is incomplete. After all, we could have the number type nested
-        # inside a tuple or a list and the comparison would still be valid.
-        # However, nested comparison between distinct numbers is very uncommon,
-        # so we only check the direct value here.
-        empty?(common) and not (number_type?(left_type) and number_type?(right_type)) ->
+        # These checks are incomplete. After all, we could have numbers and
+        # structs nested inside tuples or lists, but we only check the direct
+        # value here.
+        not (number_type?(left_type) and number_type?(right_type)) and
+            disjoint?(left_type, right_type) ->
           {:mismatched_comparison, left_type, right_type}
 
-        match?({false, _}, map_fetch_key(dynamic(common), :__struct__)) ->
+        match?({false, _}, map_fetch_key(dynamic(left_type), :__struct__)) and
+            match?({false, _}, map_fetch_key(dynamic(right_type), :__struct__)) ->
           {:struct_comparison, left_type, right_type}
 
         true ->

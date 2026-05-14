@@ -1546,14 +1546,6 @@ defmodule Module.Types.ExprTest do
                )
              ) =~ "comparison with structs found:"
 
-      assert typecheck!(
-               [x = 123, mod = Kernel, condition],
-               (
-                 y = if condition, do: 456, else: %Point{}
-                 mod.<=(x, y)
-               )
-             ) == boolean()
-
       assert typeerror!(
                [mod = Kernel, condition],
                (
@@ -1562,6 +1554,19 @@ defmodule Module.Types.ExprTest do
                  mod.<=(x, y)
                )
              ) =~ "comparison with structs found:"
+
+      assert typecheck!(
+               [x = %Date{}, y, mod = Kernel],
+               mod.>(x, y)
+             ) == boolean()
+
+      assert typecheck!(
+               [x = 123, mod = Kernel, condition],
+               (
+                 y = if condition, do: 456, else: %Point{}
+                 mod.<=(x, y)
+               )
+             ) == boolean()
     end
   end
 

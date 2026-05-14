@@ -339,30 +339,30 @@ defmodule Code.Normalizer.FormatterASTTest do
     end
   end
 
-  describe "charlist heredocs" do
-    test "without escapes" do
+  test "charlist heredocs" do
+    ExUnit.CaptureIO.capture_io(:stderr, fn ->
+      # without escapes
       assert_same ~S"""
       ~c'''
       hello
       '''
       """
-    end
 
-    test "with escapes" do
+      # with escapes
       assert_same ~S"""
       ~c'''
       f\a\b\ro
       '''
       """
 
+      # with quotes
       assert_same ~S"""
       ~c'''
       multiple "\"" quotes
       '''
       """
-    end
 
-    test "with interpolation" do
+      # with interpolation
       assert_same ~S"""
       ~c'''
       one
@@ -380,9 +380,8 @@ defmodule Code.Normalizer.FormatterASTTest do
       three
       '''
       """
-    end
 
-    test "with empty escaped new lines" do
+      # with empty escaped new lines
       source =
         String.trim(~S"""
         '''
@@ -405,7 +404,7 @@ defmodule Code.Normalizer.FormatterASTTest do
                one#{"two"}three
                '''
                """)
-    end
+    end)
   end
 
   describe "keyword list" do

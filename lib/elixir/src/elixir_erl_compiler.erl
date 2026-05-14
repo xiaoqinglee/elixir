@@ -138,6 +138,7 @@ format_warnings(Opts, Warnings) ->
 %% Those we implement ourselves
 handle_file_warning(_, _File, {_Line, v3_core, {map_key_repeated, _}}) -> ok;
 handle_file_warning(_, _File, {_Line, sys_core_fold, {ignored, useless_building}}) -> ok;
+handle_file_warning(_, _File, {_Line, sys_core_fold,{failed,{eval_failure,_,_}}}) -> ok;
 
 %% We skip all of no_match related to no_clause, clause_type, guard, shadow.
 %% Those have too little information and they overlap with the type system.

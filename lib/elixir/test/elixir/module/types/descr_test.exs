@@ -36,6 +36,18 @@ defmodule Module.Types.DescrTest do
     end)
   end
 
+  defp projected_negative_tuple(size) do
+    Enum.reduce(1..size, open_tuple([open_tuple([]), term()]), fn index, acc ->
+      difference(
+        acc,
+        open_tuple([
+          open_tuple([atom([:"value#{index}"])]),
+          integer()
+        ])
+      )
+    end)
+  end
+
   describe "union" do
     test "bitmap" do
       assert union(integer(), float()) == union(float(), integer())
@@ -1719,6 +1731,8 @@ defmodule Module.Types.DescrTest do
              |> tuple_fetch(2) == {false, integer()}
 
       assert tuple_fetch(tuple(), 0) == :badindex
+
+      assert tuple_fetch(projected_negative_tuple(200), 1) == {false, term()}
     end
 
     test "tuple_fetch with dynamic" do
@@ -1759,6 +1773,8 @@ defmodule Module.Types.DescrTest do
       assert tuple_delete_at(dynamic(tuple([integer(), atom()])), 1) ==
                dynamic(tuple([integer()]))
 
+      assert tuple_delete_at(dynamic(tuple([integer(), atom()])), 2) == :badindex
+
       # Test deleting from a union of tuples
       assert tuple_delete_at(union(tuple([integer(), atom()]), tuple([float(), binary()])), 1)
              |> equal?(tuple([union(integer(), float())]))
@@ -1771,6 +1787,13 @@ defmodule Module.Types.DescrTest do
       assert difference(tuple([integer(), atom(), boolean()]), tuple([term(), term()]))
              |> tuple_delete_at(1)
              |> equal?(tuple([integer(), boolean()]))
+
+      assert difference(
+               open_tuple([open_tuple([]), term()]),
+               open_tuple([open_tuple([atom([:value])]), integer()])
+             )
+             |> tuple_delete_at(1)
+             |> equal?(open_tuple([open_tuple([])]))
 
       # Test deleting from a complex union involving dynamic
       assert union(tuple([integer(), atom()]), dynamic(tuple([float(), binary()])))
@@ -1825,9 +1848,18 @@ defmodule Module.Types.DescrTest do
       assert tuple_insert_at(dynamic(tuple([integer(), atom()])), 1, boolean()) ==
                dynamic(tuple([integer(), boolean(), atom()]))
 
+      assert tuple_insert_at(dynamic(tuple([integer(), atom()])), 3, boolean()) == :badindex
+
       # Test inserting into a union of tuples
       assert tuple_insert_at(union(tuple([integer()]), tuple([atom()])), 0, boolean()) ==
                union(tuple([boolean(), integer()]), tuple([boolean(), atom()]))
+
+      assert difference(tuple(), empty_tuple())
+             |> tuple_insert_at(1, boolean())
+             |> equal?(open_tuple([term(), boolean()]))
+
+      inserted = tuple_insert_at(projected_negative_tuple(200), 1, atom([:inserted]))
+      assert tuple_fetch(inserted, 1) == {false, atom([:inserted])}
 
       # Test inserting into a difference of tuples
       assert difference(tuple([integer(), atom(), boolean()]), tuple([term(), term()]))

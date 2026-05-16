@@ -256,6 +256,38 @@ defmodule Mix.Tasks.Compile.ElixirTest do
     Application.delete_env(:sample, :foo, persistent: true)
   end
 
+  test "recompiles when infer signature changes" do
+    in_fixture("no_mixfile", fn ->
+      Mix.Project.push(MixTest.Case.Sample)
+
+      File.write!("lib/a.ex", """
+      defmodule A do
+        def a, do: dbg(:ok)
+      end
+      """)
+
+      File.write!("lib/b.ex", """
+      defmodule B do
+        def b, do: :ok
+      end
+      """)
+
+      assert Mix.Tasks.Compile.Elixir.run(["--verbose"]) == {:ok, []}
+      assert_received {:mix_shell, :info, ["Compiled lib/a.ex"]}
+      assert_received {:mix_shell, :info, ["Compiled lib/b.ex"]}
+
+      Mix.Project.pop()
+      Mix.ProjectStack.post_config(elixirc_options: [infer_signatures: [:elixir, :logger]])
+      Mix.Project.push(MixTest.Case.Sample)
+
+      File.touch!("_build/dev/lib/sample/.mix/compile.elixir", @old_time)
+      assert Mix.Tasks.Compile.Elixir.run(["--verbose"]) == {:ok, []}
+      refute_received {:mix_shell, :info, ["Compiled lib/a.ex"]}
+      refute_received {:mix_shell, :info, ["Compiled lib/b.ex"]}
+      assert mtime("_build/dev/lib/sample/.mix/compile.elixir") > @old_time
+    end)
+  end
+
   defdelegate dbg(code, options, env), to: Macro
 
   test "recompiles only config files when elixir config changes" do

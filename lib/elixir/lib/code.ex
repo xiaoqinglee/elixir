@@ -1764,12 +1764,9 @@ defmodule Code do
       should be using during type inference. When `false`, it disables module-local
       signature inference used when type checking remote calls to the compiled
       module. Type checking will be executed regardless of the value of this option.
-      Defaults to `true`, which is equivalent to setting it to `[:elixir]` only.
-
-      When setting this option, we recommend running `mix clean` so the modules can be
-      recompiled with the new behaviour. `mix test` automatically disables this option
-      via the `:test_elixirc_options` project configuration, as there is typically no
-      need to infer signatures for test files.
+      Mix projects will set this option to your dependencies list in dev/prod, and
+      it will disable this option during test (as there is typically no need to infer
+      signature for test files). Outside of Mix projects, it defaults to `[:elixir]`.
 
     * `:module_definition` (since v1.20.0) - stores if the module definition should
       be `:compiled` (the default) or `:interpreted`. Note this does not affect the

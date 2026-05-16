@@ -111,8 +111,7 @@ defmodule Mix.Tasks.Compile.ElixirTest do
       assert Mix.Tasks.Compile.Elixir.run(["--verbose"]) == {:ok, []}
       assert_received {:mix_shell, :info, ["Compiled lib/a.ex"]}
 
-      Mix.Task.clear()
-      Mix.ProjectStack.merge_config(xref: [exclude: [Foo]])
+      Mix.ProjectStack.merge_config(elixirc_options: [no_warn_undefined: [Foo]])
       assert Mix.Tasks.Compile.Elixir.run(["--verbose"]) == {:ok, []}
       assert_received {:mix_shell, :info, ["Compiled lib/a.ex"]}
     end)
@@ -276,10 +275,7 @@ defmodule Mix.Tasks.Compile.ElixirTest do
       assert_received {:mix_shell, :info, ["Compiled lib/a.ex"]}
       assert_received {:mix_shell, :info, ["Compiled lib/b.ex"]}
 
-      Mix.Project.pop()
-      Mix.ProjectStack.post_config(elixirc_options: [infer_signatures: [:elixir, :logger]])
-      Mix.Project.push(MixTest.Case.Sample)
-
+      Mix.ProjectStack.merge_config(elixirc_options: [infer_signatures: [:elixir, :logger]])
       File.touch!("_build/dev/lib/sample/.mix/compile.elixir", @old_time)
       assert Mix.Tasks.Compile.Elixir.run(["--verbose"]) == {:ok, []}
       refute_received {:mix_shell, :info, ["Compiled lib/a.ex"]}

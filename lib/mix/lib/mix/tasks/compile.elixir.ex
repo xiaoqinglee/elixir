@@ -240,6 +240,11 @@ defmodule Mix.Tasks.Compile.Elixir do
     if exclude == [] do
       opts
     else
+      IO.warn(
+        "\"xref: [exclude: ...]\" in your mix.exs file is deprecated, " <>
+          "instead use: \"elixirc_options: [no_warn_undefined: ...]\""
+      )
+
       Keyword.update(opts, :no_warn_undefined, exclude, &(List.wrap(&1) ++ exclude))
     end
   end
